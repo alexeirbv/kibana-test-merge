@@ -134,7 +134,7 @@ class TimeseriesChart extends Component {
     let tooltip;
     let timestamp;
     let dataPoints = [];
-
+	//Код для получения списка метрик
     if (item) {
       timestamp = item.datapoint[0];
       dataPoints = series.reduce((points, series) => {
@@ -152,7 +152,7 @@ class TimeseriesChart extends Component {
         return points;
       }, []);
     }
-
+//
      const styles = reactcss({
       showTooltip: {
         tooltipContainer: {
@@ -234,6 +234,8 @@ class TimeseriesChart extends Component {
     });
 
     if (item) {
+	    
+		//Формируем вертску для списка?   
       //const metric = series.find(r => r.id === item.series.id);
       //const formatter = metric && metric.tickFormatter || this.props.tickFormatter || ((v) => v);
       //const value = item.datapoint[2] ? item.datapoint[1] - item.datapoint[2] : item.datapoint[1];
@@ -252,12 +254,13 @@ class TimeseriesChart extends Component {
           </div>
         );
       }, this);
-
+//
       tooltip = (
         <div style={styles.tooltipContainer}>
           <i className="fa fa-caret-left" style={styles.leftCaret} />
           <div style={styles.tooltipColumns}>
            <div style={styles.tooltipColumn}>
+	      ///Сюда вставляем вертску, которую сформировали?
               {rows.slice(0, rows.length / 2)}
            </div>
            <div style={styles.tooltipColumn}>
