@@ -23,8 +23,7 @@ import moment from 'moment';
 import reactcss from 'reactcss';
 import FlotChart from './flot_chart';
 import Annotation from './annotation';
-import { EuiIcon } from '@elastic/eui';
-
+import { findIndex } from 'lodash';
 export function scaleUp(value) {
   return window.devicePixelRatio * value;
 }
@@ -88,16 +87,24 @@ class TimeseriesChart extends Component {
 
     if (item) {
       const plotOffset = plot.getPlotOffset();
-      const point = plot.pointOffset({ x: item.datapoint[0], y: item.datapoint[1] });
+      const offset = plot.offset();
+      const width = plot.width();
+      const height = plot.height();
+      //const point = plot.pointOffset({ x: item.datapoint[0], y: item.datapoint[1] });
+      const mouseX = Math.max(0, Math.min(pos.pageX - offset.left, width));
+      const mouseY = Math.max(0, Math.min(pos.pageY - offset.top, height));
       const [left, right ] = this.calculateLeftRight(item, plot);
-      const top = point.top;
+      //const top = point.top;
       this.setState({
         showTooltip: true,
         item,
         left,
         right,
-        top: top + 10,
-        bottom: plotOffset.bottom
+        mouseX,
+        mouseY,
+        width,
+        leftOffset: plotOffset.left,
+        rightOffset: plotOffset.right
       });
     }
   }
@@ -122,17 +129,101 @@ class TimeseriesChart extends Component {
   }
 
   render() {
-    const { item, right, top, left } = this.state;
+    const { item, right, left, mouseX, mouseY, width, leftOffset, rightOffset } = this.state;
     const { series } = this.props;
     let tooltip;
+    let timestamp;
+    let dataPoints = [];
 
-    const styles = reactcss({
+    if (item) {
+      timestamp = item.datapoint[0];
+      dataPoints = series.reduce((points, series) => {
+        const index = findIndex(series.data, (d => d[0] === timestamp));
+        if (index > -1) {
+          const datapoint = series.data[index];
+          if (datapoint) {
+            const point = {
+              series,
+              datapoint,
+            };
+            points = [...points, point];
+          }
+        }
+        return points;
+      }, []);
+    }
+
+     const styles = reactcss({
       showTooltip: {
         tooltipContainer: {
-          top: top - 8,
-          left,
-          right,
+          pointerEvents: 'none',
+          position: 'absolute',
+          top: mouseY - (dataPoints.length * 17 + 10) / 2,
+          left: left ? mouseX + leftOffset : null,
+          right: right ? width - mouseX + rightOffset : null,
+	  zIndex: 999,
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0 5px'
         },
+        tooltip: {
+          backgroundColor: this.props.reversed ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)',
+          color: this.props.reversed ? 'black' : 'white',
+          fontSize: '12px',
+          padding: '4px 8px',
+          borderRadius: '4px'
+        },
+        tooltipColumns: {
+          display: "flex",
+          flexDirection: "row",
+          backgroundColor: this.props.reversed ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)',
+          color: this.props.reversed ? 'black' : 'white',
+          fontSize: '12px',
+          padding: '4px 8px',
+          borderRadius: '4px'
+        },
+        tooltipColumn: {
+          display: "flex",
+          flexDirection: "column",
+          padding: '15px',
+        },
+        rightCaret: {
+          display: right ? 'block' : 'none',
+          color: this.props.reversed ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)',
+        },
+        leftCaret: {
+          display: left ? 'block' : 'none',
+          color: this.props.reversed ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)',
+        },
+        date: {
+          color: this.props.reversed ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.7)',
+          fontSize: '12px',
+          lineHeight: '12px',
+	   marginTop: 2
+        },
+        items: {
+          display: 'flex',
+          alignItems: 'center',
+	  height: '17px'
+        },
+        text: {
+          whiteSpace: 'nowrap',
+          fontSize: '12px',
+          lineHeight: '12px',
+          marginRight: 5,
+	  maxWidth: '300px',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis'
+        },
+        icon: {
+          marginRight: 5
+        },
+        value: {
+          fontSize: '12px',
+          flexShrink: 0,
+          lineHeight: '12px',
+          marginLeft: 'auto'
+        }
       },
       hideTooltip: {
         tooltipContainer: { display: 'none' },
@@ -143,20 +234,38 @@ class TimeseriesChart extends Component {
     });
 
     if (item) {
-      const metric = series.find(r => r.id === item.series.id);
-      const formatter = metric && metric.tickFormatter || this.props.tickFormatter || ((v) => v);
-      const value = item.datapoint[2] ? item.datapoint[1] - item.datapoint[2] : item.datapoint[1];
-      tooltip = (
-        <div className={`tvbTooltip__container tvbTooltip__container--${right ? 'right' : 'left'}`} style={styles.tooltipContainer}>
-          <span className="tvbTooltip__caret"/>
-          <div className="tvbTooltip">
-            <div className="tvbTooltip__item">
-              <EuiIcon className="tvbTooltip__icon" type="dot" color={item.series.color} />
-              <div className="tvbTooltip__label">{ item.series.label }</div>
-              <div className="tvbTooltip__value">{ formatter(value) }</div>
+      //const metric = series.find(r => r.id === item.series.id);
+      //const formatter = metric && metric.tickFormatter || this.props.tickFormatter || ((v) => v);
+      //const value = item.datapoint[2] ? item.datapoint[1] - item.datapoint[2] : item.datapoint[1];
+      const rows = dataPoints.map(point => {
+        const metric = series.find(r => r.id === point.series.id);
+        const formatter = metric && metric.tickFormatter || this.props.tickFormatter || ((v) => v);
+        const value = point.datapoint[2] ? point.datapoint[1] - point.datapoint[2] : point.datapoint[1];
+
+        return (
+          <div key={point.series.id} style={styles.items}>
+            <div style={styles.icon}>
+              <i className="fa fa-circle" style={{ color: point.series.color }}/>
             </div>
-            <div className="tvbTooltip__timestamp">{ moment(item.datapoint[0]).format(this.props.dateFormat) }</div>
+            <div style={styles.text}>{point.series.label}</div>
+            <div style={styles.value}>{formatter(value)}</div>
           </div>
+        );
+      }, this);
+
+      tooltip = (
+        <div style={styles.tooltipContainer}>
+          <i className="fa fa-caret-left" style={styles.leftCaret} />
+          <div style={styles.tooltipColumns}>
+           <div style={styles.tooltipColumn}>
+              {rows.slice(0, rows.length / 2)}
+           </div>
+           <div style={styles.tooltipColumn}>
+              {rows.slice(-(rows.length / 2))}
+           </div>
+	   <div style={styles.date}>{ moment(timestamp).format(this.props.dateFormat) }</div>
+	   </div>
+          <i className="fa fa-caret-right" style={styles.rightCaret} />
         </div>
       );
     }
@@ -181,13 +290,13 @@ class TimeseriesChart extends Component {
     };
 
     const annotations = this.state.annotations.map(this.renderAnnotations);
-    let axisLabelClass = 'tvbVisTimeSeries__axisLabel';
+    let axisLabelClass = 'rhythm_chart__axis-label';
     if (this.props.reversed) {
-      axisLabelClass += ' tvbVisTimeSeries__axisLabel--reversed';
+      axisLabelClass += ' reversed';
     }
 
     return (
-      <div ref={(el) => this.container = el} className="tvbVisTimeSeries__container">
+      <div ref={(el) => this.container = el} className="rhythm_chart__timeseries-container">
         { tooltip }
         { annotations }
         <FlotChart {...params}/>
